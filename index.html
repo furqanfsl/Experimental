@@ -384,7 +384,6 @@ function logic(dt, now) {
 // ─────────────────────────────────── Drawing helpers
 function skyColor() {
   const t = W.timeOfDay;
-  // sunrise 0.2-0.28, day 0.28-0.72, sunset 0.72-0.80, night 0-0.2 / 0.8-1
   let r,g,b;
   if (t < 0.22) { r=10;g=10;b=35; }
   else if (t < 0.30) { const p=(t-0.22)/0.08; r=lerp(10,255*0.9,p); g=lerp(10,140*0.9,p); b=lerp(35,50,p); }
@@ -393,6 +392,19 @@ function skyColor() {
   else { r=10;g=10;b=35; }
   return `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
 }
+
+// ── NEW: returns skyColor as rgba with given alpha (0–1) ──────────────────
+function skyColorAlpha(alpha) {
+  const t = W.timeOfDay;
+  let r,g,b;
+  if (t < 0.22) { r=10;g=10;b=35; }
+  else if (t < 0.30) { const p=(t-0.22)/0.08; r=lerp(10,255*0.9,p); g=lerp(10,140*0.9,p); b=lerp(35,50,p); }
+  else if (t < 0.72) { r=108;g=177;b=240; }
+  else if (t < 0.80) { const p=(t-0.72)/0.08; r=lerp(108,240,p); g=lerp(177,90,p); b=lerp(240,40,p); }
+  else { r=10;g=10;b=35; }
+  return `rgba(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)},${alpha})`;
+}
+
 function lerp(a,b,t) { return a+(b-a)*t; }
 
 function grassColor() {
@@ -405,7 +417,7 @@ function drawOutside(now) {
   // Sky gradient
   const grad = ctx.createLinearGradient(0,0,0,CH*0.45);
   grad.addColorStop(0, skyColor());
-  grad.addColorStop(1, skyColor()+"aa");
+  grad.addColorStop(1, skyColorAlpha(0.67)); // ← FIXED: was skyColor()+"aa" which is invalid
   ctx.fillStyle = grad;
   ctx.fillRect(0,0,CW,CH*0.45);
 
