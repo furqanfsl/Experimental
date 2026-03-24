@@ -3,45 +3,330 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Red Button</title>
+  <title>Village Sim</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
+      background: #1a1a2e;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
       align-items: center;
+      justify-content: center;
       min-height: 100vh;
-      background-color: #f0f0f0;
+      font-family: 'Segoe UI', sans-serif;
+      user-select: none;
+    }
+
+    canvas { display: block; border: 3px solid #333; }
+
+    .ui {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
     }
 
     .red-button {
-      padding: 16px 40px;
-      font-size: 1.2rem;
+      padding: 13px 36px;
+      font-size: 1rem;
       font-weight: bold;
       color: #fff;
-      background-color: #e53e3e;
+      background: #e53e3e;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      transition: background-color 0.2s ease, transform 0.1s ease;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .red-button:hover:not(:disabled) { background: #c53030; }
+    .red-button:active:not(:disabled) { background: #9b2c2c; transform: scale(0.97); }
+    .red-button:disabled { background: #555; cursor: default; }
+
+    #info {
+      color: #ddd;
+      font-size: 0.88rem;
+      background: rgba(255,255,255,0.07);
+      padding: 10px 16px;
+      border-radius: 8px;
     }
 
-    .red-button:hover {
-      background-color: #c53030;
-    }
-
-    .red-button:active {
-      background-color: #9b2c2c;
-      transform: scale(0.97);
+    #hint {
+      color: #555;
+      font-size: 0.75rem;
+      margin-top: 8px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
     }
   </style>
 </head>
 <body>
-  <button class="red-button">Click Me</button>
+  <canvas id="c" width="800" height="560"></canvas>
+  <div class="ui">
+    <button class="red-button" id="growBtn">Grow Farm</button>
+    <span id="info">Farm Level: 1 / 5</span>
+  </div>
+  <p id="hint">W A S D to move</p>
+
+  <script>
+    const canvas = document.getElementById('c');
+    const ctx    = canvas.getContext('2d');
+    const CW = canvas.width, CH = canvas.height;
+
+    // Farm state
+    let farmLevel = 1;
+    const FARM_MAX = 5;
+
+    const growBtn = document.getElementById('growBtn');
+    const infoEl  = document.getElementById('info');
+
+    growBtn.addEventListener('click', () => {
+      if (farmLevel < FARM_MAX) {
+        farmLevel++;
+        infoEl.textContent = 'Farm Level: ' + farmLevel + ' / ' + FARM_MAX;
+        if (farmLevel === FARM_MAX) {
+          growBtn.disabled = true;
+          growBtn.textContent = 'Farm Full!';
+        }
+      }
+    });
+
+    // Input
+    const keys = {};
+    window.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+      if (['arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase()))
+        e.preventDefault();
+    });
+    window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+    // Player
+    const player = {
+      x: 430, y: 390,
+      r: 13,
+      speed: 3.2,
+      dir: 's'
+    };
+
+    // Scene layout
+    const HOUSE = { x: 72, y: 108, w: 132, h: 104 };
+    const FARM  = { x: 285, y: 88 };
+    const PLOT  = 36, PGAP = 5;
+
+    function farmCols()  { return farmLevel + 1; }
+    function farmRowsN() {
+      if (farmLevel <= 2) return 2;
+      if (farmLevel <= 4) return 3;
+      return 4;
+    }
+
+    // Draw: ground
+    function drawGround() {
+      ctx.fillStyle = '#52A655';
+      ctx.fillRect(0, 0, CW, CH);
+
+      ctx.fillStyle = '#5DBB63';
+      for (let gy = 0; gy < CH; gy += 60)
+        for (let gx = 0; gx < CW; gx += 80)
+          ctx.fillRect(gx + 10, gy + 10, 60, 40);
+
+      // Dirt path between house and farm
+      ctx.fillStyle = '#B89060';
+      ctx.fillRect(HOUSE.x + HOUSE.w, HOUSE.y + 40, FARM.x - (HOUSE.x + HOUSE.w), 28);
+
+      // Bottom fence
+      ctx.fillStyle = '#C8A055';
+      for (let fx = 0; fx < CW; fx += 44) {
+        ctx.fillRect(fx, CH - 24, 10, 24);
+        if (fx + 44 < CW) {
+          ctx.fillRect(fx + 10, CH - 18, 34, 7);
+          ctx.fillRect(fx + 10, CH - 10, 34, 5);
+        }
+      }
+    }
+
+    // Draw: house
+    function drawHouse() {
+      const { x, y, w, h } = HOUSE;
+
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      ctx.fillRect(x + 8, y + 8, w, h);
+
+      ctx.fillStyle = '#D4A574';
+      ctx.fillRect(x, y, w, h);
+
+      ctx.fillStyle = '#8B2222';
+      ctx.fillRect(x, y, w, 24);
+
+      // Chimney
+      ctx.fillStyle = '#666';
+      ctx.fillRect(x + w - 30, y - 12, 18, 20);
+      ctx.fillStyle = '#444';
+      ctx.fillRect(x + w - 32, y - 14, 22, 6);
+
+      ctx.strokeStyle = '#7A5230';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+
+      drawWindow(x + 14, y + 32);
+      drawWindow(x + w - 40, y + 32);
+
+      // Door
+      const dw = 28, dh = 36;
+      const dx = x + (w - dw) / 2, dy = y + h - dh;
+      ctx.fillStyle = '#3B1F0A';
+      ctx.fillRect(dx, dy, dw, dh);
+      ctx.beginPath();
+      ctx.arc(dx + dw / 2, dy, dw / 2, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#C8A030';
+      ctx.beginPath();
+      ctx.arc(dx + dw - 7, dy + dh / 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = 'bold 12px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Home', x + w / 2, y - 18);
+      ctx.textAlign = 'left';
+    }
+
+    function drawWindow(wx, wy) {
+      ctx.fillStyle = '#AEE4F0';
+      ctx.fillRect(wx, wy, 26, 22);
+      ctx.strokeStyle = '#5A9AB0';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(wx, wy, 26, 22);
+      ctx.beginPath();
+      ctx.moveTo(wx + 13, wy); ctx.lineTo(wx + 13, wy + 22);
+      ctx.moveTo(wx, wy + 11); ctx.lineTo(wx + 26, wy + 11);
+      ctx.stroke();
+    }
+
+    // Draw: farm
+    function drawFarm() {
+      const cols = farmCols();
+      const rows = farmRowsN();
+      const fw = cols * (PLOT + PGAP) - PGAP;
+      const fh = rows * (PLOT + PGAP) - PGAP;
+      const { x, y } = FARM;
+
+      ctx.fillStyle = '#7A5810';
+      ctx.fillRect(x - 10, y - 10, fw + 20, fh + 20);
+
+      const soilColor  = '#6B3A2A';
+      const cropColors = ['#90EE90','#3CB371','#228B22','#DAA520','#FFD700'];
+      const cropColor  = cropColors[farmLevel - 1];
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const px = x + c * (PLOT + PGAP);
+          const py = y + r * (PLOT + PGAP);
+
+          ctx.fillStyle = soilColor;
+          ctx.fillRect(px, py, PLOT, PLOT);
+
+          ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+          ctx.lineWidth = 1;
+          for (let i = 1; i <= 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(px, py + i * PLOT / 4);
+            ctx.lineTo(px + PLOT, py + i * PLOT / 4);
+            ctx.stroke();
+          }
+
+          const pad = farmLevel <= 1 ? 9 : farmLevel <= 2 ? 7 : 5;
+          ctx.fillStyle = cropColor;
+          ctx.fillRect(px + pad, py + pad, PLOT - pad * 2, PLOT - pad * 2);
+
+          if (farmLevel === FARM_MAX) {
+            ctx.strokeStyle = '#FF8C00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(px + PLOT / 2, py + PLOT - 3);
+            ctx.lineTo(px + PLOT / 2, py + 3);
+            ctx.stroke();
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(px + PLOT / 2, py + 4, 4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = 'bold 12px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Farm', x + fw / 2, y - 16);
+      ctx.textAlign = 'left';
+    }
+
+    // Draw: player
+    function drawPlayer() {
+      const { x, y, r, dir } = player;
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + r + 2, r * 0.75, r * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = '#3A6EE8';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1a3a8a';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Face
+      ctx.fillStyle = '#FFDAB9';
+      ctx.beginPath();
+      ctx.arc(x, y - 3, r * 0.52, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes & expression
+      ctx.fillStyle = '#222';
+      const ey = y - 5;
+      if (dir === 's') {
+        ctx.fillRect(x - 5, ey, 3, 3);
+        ctx.fillRect(x + 2, ey, 3, 3);
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x, ey + 5, 3, 0, Math.PI);
+        ctx.stroke();
+      } else if (dir === 'e') {
+        ctx.fillRect(x + 1, ey, 3, 3);
+      } else if (dir === 'w') {
+        ctx.fillRect(x - 4, ey, 3, 3);
+      }
+      // dir 'n': walking away, no face visible
+    }
+
+    // Update
+    function update() {
+      if (keys['w'] || keys['arrowup'])    { player.y -= player.speed; player.dir = 'n'; }
+      if (keys['s'] || keys['arrowdown'])  { player.y += player.speed; player.dir = 's'; }
+      if (keys['a'] || keys['arrowleft'])  { player.x -= player.speed; player.dir = 'w'; }
+      if (keys['d'] || keys['arrowright']) { player.x += player.speed; player.dir = 'e'; }
+
+      player.x = Math.max(player.r, Math.min(CW - player.r, player.x));
+      player.y = Math.max(player.r, Math.min(CH - 26 - player.r, player.y));
+    }
+
+    // Game loop
+    function loop() {
+      update();
+      ctx.clearRect(0, 0, CW, CH);
+      drawGround();
+      drawHouse();
+      drawFarm();
+      drawPlayer();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
 </body>
 </html>
